@@ -690,58 +690,63 @@ export default class EclipseDVDExtension extends Extension {
     }
 
     _hideCursor() {
+        if (this._cursorInhibited || this._focusInhibited) {
+            return;
+        }
+
         try {
             // https://gjs-docs.gnome.org/meta17~17/meta.backend#method-get_cursor_tracker
             this._cursorTracker = global.backend.get_cursor_tracker();
         }
         catch (e) {
-            console.error('Eclipse: Failed to get cursor tracker: ' + e.message);
+            console.error(`Eclipse: Failed to get cursor tracker: ` + e.message);
+            this._cursorTracker = null;
+        }
+
+        if (this._cursorTracker) {
+            try {
+                // https://gjs-docs.gnome.org/meta17~17/meta.cursortracker#method-inhibit_cursor_visibility
+                this._cursorTracker.inhibit_cursor_visibility();
+                this._cursorInhibited = true;
+            }
+            catch (e) {
+                console.error(`Eclipse: Failed to hide cursor: ` + e.message);
+            }
         }
 
         try {
             // https://gjs-docs.gnome.org/clutter17~17/clutter.get_default_backend
             // https://gjs-docs.gnome.org/clutter17~17/clutter.backend#method-get_default_seat
             this._seat = Clutter.get_default_backend().get_default_seat();
-            if (this._seat && typeof this._seat.inhibit_unfocus === 'function') {
+
+            if (this._seat) {
                 // https://gjs-docs.gnome.org/clutter17~17/clutter.seat#method-inhibit_unfocus
                 this._seat.inhibit_unfocus();
                 this._focusInhibited = true;
             }
         }
         catch (e) {
-            console.error('Eclipse: Failed to inhibit seat unfocus: ' + e.message);
-        }
-
-        try {
-            if (typeof this._cursorTracker.inhibit_cursor_visibility === 'function') {
-                // https://gjs-docs.gnome.org/meta17~17/meta.cursortracker#method-inhibit_cursor_visibility
-                this._cursorTracker.inhibit_cursor_visibility();
-                this._cursorInhibited = true;
-            }
-        }
-        catch (e) {
-            console.error('Eclipse: Failed to hide cursor: ' + e.message);
+            console.error(`Eclipse: Failed to inhibit seat unfocus: ` + e.message);
+            this._seat = null;
         }
     }
- 
+
     _showCursor() {
-        if (this._cursorTracker) {
+        if (this._cursorTracker && this._cursorInhibited) {
             try {
-                if (this._cursorInhibited && typeof this._cursorTracker.uninhibit_cursor_visibility === 'function') {
-                    this._cursorTracker.uninhibit_cursor_visibility();
-                }
+                this._cursorTracker.uninhibit_cursor_visibility();
             }
             catch (e) {
-                console.error('Eclipse: Failed to show cursor: ' + e.message);
+                console.error(`Eclipse: Failed to show cursor: ` + e.message);
             }
         }
 
-        if (this._focusInhibited && this._seat && typeof this._seat.uninhibit_unfocus === 'function') {
+        if (this._seat && this._focusInhibited) {
             try {
                 this._seat.uninhibit_unfocus();
             }
             catch (e) {
-                console.error('Eclipse: Failed to uninhibit seat unfocus: ' + e.message);
+                console.error(`Eclipse: Failed to uninhibit seat unfocus: ` + e.message);
             }
         }
 
